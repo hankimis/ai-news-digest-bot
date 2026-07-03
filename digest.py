@@ -35,7 +35,7 @@ TIMEOUT = 20
 # --------------------------------------------------------------------------- #
 # Sources
 # --------------------------------------------------------------------------- #
-def fetch_github_trending(limit: int = 7) -> list[dict]:
+def fetch_github_trending(limit: int = 10) -> list[dict]:
     """Scrape https://github.com/trending (daily) for the top repositories."""
     url = "https://github.com/trending?since=daily"
     r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
@@ -155,7 +155,7 @@ def build_card(repos: list[dict], date_iso: str, path: str = "/tmp/digest_card.p
         "Go": (0, 173, 216), "Rust": (222, 165, 132), "C++": (243, 75, 125),
     }
 
-    rows = repos[:7]
+    rows = repos[:10]
     W, row_h = 1080, 112
     H = 250 + len(rows) * row_h + 70
     img = Image.new("RGB", (W, H), bg)
@@ -201,7 +201,7 @@ def build_message(repos: list[dict], hn: list[dict], posts: list[dict],
         return html.escape(s, quote=False)
 
     ko = lang != "en"
-    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣"]
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     div = "━" * 16
     title = "오늘의 AI 다이제스트" if ko else "Today's AI Digest"
     sub = "아침 브리핑" if ko else "morning brief"
