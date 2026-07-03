@@ -43,12 +43,14 @@ def fetch_github_trending(limit: int = 10) -> list[dict]:
     html_text = r.text
 
     repos: list[dict] = []
-    # Each repo row is an <article class="Box-row"> block.
+    # Each repo row is an <article class="Box-row"> block. The repo link lives
+    # in the <h2> heading — match that specifically so we don't accidentally
+    # grab the "/sponsors/<user>" link that appears earlier in some rows.
     for block in re.split(r'<article class="Box-row">', html_text)[1:]:
-        m = re.search(r'href="/([^"/]+)/([^"]+)"', block)
+        m = re.search(r'<h2[^>]*>\s*<a[^>]+href="/([^"/]+)/([^"?#]+)"', block, re.S)
         if not m:
             continue
-        owner, name = m.group(1), m.group(2).split('"')[0]
+        owner, name = m.group(1), m.group(2).strip()
         full = f"{owner}/{name}"
 
         desc_m = re.search(r'<p class="col-9[^"]*">\s*(.*?)\s*</p>', block, re.S)
