@@ -125,30 +125,42 @@ def build_card(repos: list[dict], date_iso: str, path: str = "/tmp/digest_card.p
                 return ImageFont.truetype(c, size)
         return ImageFont.load_default()
 
-    bg, card = (13, 17, 23), (22, 27, 34)
-    accent, green = (88, 166, 255), (63, 185, 80)
-    white, muted, gold = (230, 237, 243), (139, 148, 158), (210, 180, 90)
+    bg, card = (13, 17, 23), (24, 29, 38)
+    accent, gold = (88, 166, 255), (240, 185, 80)
+    white, muted = (235, 240, 246), (139, 148, 158)
+    lang_colors = {
+        "Shell": (137, 221, 255), "Python": (63, 185, 80),
+        "JavaScript": (240, 220, 90), "TypeScript": (88, 166, 255),
+        "Go": (0, 173, 216), "Rust": (222, 165, 132), "C++": (243, 75, 125),
+    }
 
     rows = repos[:7]
-    W = 1080
-    H = 300 + len(rows) * 108
+    W, row_h = 1080, 112
+    H = 250 + len(rows) * row_h + 70
     img = Image.new("RGB", (W, H), bg)
     d = ImageDraw.Draw(img)
 
-    d.text((60, 58), "Today's AI Digest", font=font(58, True), fill=white)
-    d.text((62, 132), f"{date_iso}  -  GitHub Trending Today", font=font(28), fill=muted)
-    d.line((60, 190, W - 60, 190), fill=(48, 54, 61), width=2)
-    d.text((60, 214), "GitHub Trending", font=font(34, True), fill=accent)
+    d.rectangle((0, 0, W, 10), fill=accent)  # top accent bar
+    d.text((60, 52), "Today's AI Digest", font=font(60, True), fill=white)
+    d.text((62, 130), f"{date_iso}   |   GitHub Trending Today", font=font(27), fill=muted)
+    d.line((60, 192, W - 60, 192), fill=(46, 52, 62), width=2)
 
-    y = 272
-    for repo in rows:
-        d.rounded_rectangle((60, y, W - 60, y + 94), radius=14, fill=card)
-        d.text((84, y + 16), repo["full"], font=font(30, True), fill=white)
-        d.text((84, y + 56), repo["lang"] or "-", font=font(23), fill=green)
+    y = 224
+    for i, repo in enumerate(rows, 1):
+        dot = lang_colors.get(repo["lang"], muted)
+        d.rounded_rectangle((60, y, W - 60, y + 94), radius=16, fill=card)
+        d.ellipse((84, y + 40, 104, y + 60), fill=dot)          # language color dot
+        d.text((122, y + 14), f"#{i}", font=font(24, True), fill=accent)
+        d.text((176, y + 12), repo["full"], font=font(31, True), fill=white)
+        d.text((122, y + 52), repo["lang"] or "-", font=font(22), fill=dot)
         tag = f"* {repo['stars_today']} today"
-        tw = d.textlength(tag, font=font(25))
-        d.text((W - 84 - tw, y + 52), tag, font=font(25), fill=gold)
-        y += 108
+        tw = d.textlength(tag, font=font(26, True))
+        d.text((W - 84 - tw, y + 30), tag, font=font(26, True), fill=gold)
+        y += row_h
+
+    d.line((60, y + 6, W - 60, y + 6), fill=(46, 52, 62), width=2)
+    d.text((60, y + 24), "github.com/trending   +   reddit.com/r/artificial",
+           font=font(22), fill=muted)
 
     img.save(path)
     return path
@@ -158,33 +170,47 @@ def build_card(repos: list[dict], date_iso: str, path: str = "/tmp/digest_card.p
 # Message
 # --------------------------------------------------------------------------- #
 def build_message(repos: list[dict], posts: list[dict], date_str: str, lang: str) -> str:
+    """Compose a readable Telegram HTML digest.
+
+    Telegram only supports a small tag set (<b>, <i>, <a>, <code>,
+    <blockquote>), so we lean on medals, rule lines and spacing for structure.
+    """
     def esc(s: str) -> str:
         return html.escape(s, quote=False)
 
-    if lang == "en":
-        h_gh, h_rd, h_note = "GitHub Trending", "Reddit r/artificial", "One-liner"
-    else:
-        h_gh, h_rd, h_note = "GitHub Trending", "Reddit r/artificial", "오늘의 한 줄"
+    ko = lang != "en"
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣"]
+    div = "━" * 16
+    title = "오늘의 AI 다이제스트" if ko else "Today's AI Digest"
+    sub = "아침 브리핑" if ko else "morning brief"
 
-    lines = [f"<b>☀️ Today's AI Digest — {esc(date_str)}</b>", ""]
+    lines = [f"☀️ <b>{title}</b>", f"<i>{esc(date_str)} · {sub}</i>", ""]
 
-    lines.append(f"<b>🔥 {h_gh}</b>")
-    for i, r in enumerate(repos, 1):
-        meta = " · ".join(x for x in [r["lang"], f"★{r['stars_today']}"] if x)
-        lines.append(f'{i}. <a href="{esc(r["url"])}">{esc(r["full"])}</a> · {meta}')
+    lines += [div, "🔥 <b>GitHub Trending</b>", ""]
+    for i, r in enumerate(repos):
+        badge = medals[i] if i < len(medals) else f"{i + 1}."
+        name = r["full"].split("/")[-1]  # repo name only, for readability
+        lines.append(f'{badge} <a href="{esc(r["url"])}"><b>{esc(name)}</b></a>')
+        meta = [f'<code>{esc(r["lang"])}</code>'] if r["lang"] else []
+        meta.append(f'⭐ <b>{esc(r["stars_today"])}</b>')
+        lines.append("    " + "  ·  ".join(meta))
         if r["desc"]:
-            lines.append(esc(r["desc"]))
-    lines.append("")
+            lines.append(f'    └ {esc(r["desc"])}')
+        lines.append("")
 
-    lines.append(f"<b>💬 {h_rd}</b>")
+    lines += [div, "💬 <b>Reddit r/artificial</b>", ""]
     if posts:
         for p in posts:
-            lines.append(f'• <a href="{esc(p["url"])}">{esc(p["title"])}</a>')
+            lines.append(f'▸ <a href="{esc(p["url"])}">{esc(p["title"])}</a>')
     else:
-        lines.append("수집 실패 — 소스 접근 불가" if lang != "en" else "Fetch failed — source unreachable")
-    lines.append("")
+        lines.append("수집 실패 — 소스 접근 불가" if ko else "Fetch failed — source unreachable")
 
-    lines.append(f"<b>📌 {h_note}</b>")
+    note = "오늘의 한 줄" if ko else "One-liner"
+    if ko:
+        summary = f"오늘 GitHub 트렌딩 {len(repos)}건, r/artificial {len(posts)}건을 추렸어요."
+    else:
+        summary = f"Picked {len(repos)} trending repos and {len(posts)} r/artificial posts today."
+    lines += ["", div, f"📌 <b>{note}</b>", f"<blockquote>{summary}</blockquote>"]
     return "\n".join(lines)
 
 
