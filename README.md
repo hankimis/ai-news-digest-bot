@@ -22,6 +22,7 @@ Telegram chat. Zero servers required — run it locally, on cron, or with **GitH
 ## ✨ Features
 
 - 🔥 **GitHub Trending** — top daily repos with language + stars-today.
+- 🟠 **Hacker News** — front-page stories ranked by points (official Algolia API).
 - 💬 **Reddit r/artificial** — hot posts via the RSS feed (works where the JSON API is blocked).
 - 🖼️ **Auto-generated card image** — a dark, shareable summary card (ASCII-safe, renders on any font).
 - 📨 **Telegram delivery** — photo + HTML digest with real source links, no link-preview spam.
@@ -104,7 +105,7 @@ That's it — check your Telegram. 🎉
 
 ```
 GitHub Trending (scrape)  ─┐
-                           ├─►  build card (Pillow)  ─►  sendPhoto  ─┐
+Hacker News (Algolia API) ─┼─►  build card (Pillow)  ─►  sendPhoto  ─┐
 Reddit r/artificial (RSS) ─┘                                        ├─►  Telegram
                               build HTML digest        ─►  sendMessage ┘
 ```

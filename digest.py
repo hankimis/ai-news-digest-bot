@@ -101,6 +101,27 @@ def fetch_reddit(sub: str = "artificial", limit: int = 6) -> list[dict]:
     return posts
 
 
+def fetch_hackernews(limit: int = 5) -> list[dict]:
+    """Fetch the current Hacker News front page via the Algolia API,
+    ranked by points. Story links fall back to the HN discussion page."""
+    url = "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30"
+    r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r.raise_for_status()
+
+    hits = sorted(r.json().get("hits", []),
+                  key=lambda h: h.get("points", 0), reverse=True)
+    stories: list[dict] = []
+    for h in hits[:limit]:
+        hn_url = f"https://news.ycombinator.com/item?id={h['objectID']}"
+        stories.append({
+            "title": h.get("title", ""),
+            "url": h.get("url") or hn_url,
+            "points": h.get("points", 0),
+            "comments": h.get("num_comments", 0),
+        })
+    return stories
+
+
 # --------------------------------------------------------------------------- #
 # Card image (ASCII only — portable across fonts)
 # --------------------------------------------------------------------------- #
@@ -169,7 +190,8 @@ def build_card(repos: list[dict], date_iso: str, path: str = "/tmp/digest_card.p
 # --------------------------------------------------------------------------- #
 # Message
 # --------------------------------------------------------------------------- #
-def build_message(repos: list[dict], posts: list[dict], date_str: str, lang: str) -> str:
+def build_message(repos: list[dict], hn: list[dict], posts: list[dict],
+                  date_str: str, lang: str) -> str:
     """Compose a readable Telegram HTML digest.
 
     Telegram only supports a small tag set (<b>, <i>, <a>, <code>,
@@ -198,6 +220,15 @@ def build_message(repos: list[dict], posts: list[dict], date_str: str, lang: str
             lines.append(f'    └ {esc(r["desc"])}')
         lines.append("")
 
+    if hn:
+        lines += [div, "🟠 <b>Hacker News</b>", ""]
+        for s in hn:
+            lines.append(
+                f'▸ <a href="{esc(s["url"])}">{esc(s["title"])}</a>'
+                f'  ▲{s["points"]} · 💬{s["comments"]}'
+            )
+        lines.append("")
+
     lines += [div, "💬 <b>Reddit r/artificial</b>", ""]
     if posts:
         for p in posts:
@@ -207,9 +238,11 @@ def build_message(repos: list[dict], posts: list[dict], date_str: str, lang: str
 
     note = "오늘의 한 줄" if ko else "One-liner"
     if ko:
-        summary = f"오늘 GitHub 트렌딩 {len(repos)}건, r/artificial {len(posts)}건을 추렸어요."
+        summary = (f"오늘 GitHub 트렌딩 {len(repos)}건, Hacker News {len(hn)}건, "
+                   f"r/artificial {len(posts)}건을 추렸어요.")
     else:
-        summary = f"Picked {len(repos)} trending repos and {len(posts)} r/artificial posts today."
+        summary = (f"Picked {len(repos)} trending repos, {len(hn)} Hacker News stories "
+                   f"and {len(posts)} r/artificial posts today.")
     lines += ["", div, f"📌 <b>{note}</b>", f"<blockquote>{summary}</blockquote>"]
     return "\n".join(lines)
 
@@ -264,12 +297,18 @@ def main() -> int:
         repos = []
 
     try:
+        hn = fetch_hackernews()
+    except Exception as e:  # noqa: BLE001
+        print(f"hackernews failed: {e}", file=sys.stderr)
+        hn = []
+
+    try:
         posts = fetch_reddit()
     except Exception as e:  # noqa: BLE001
         print(f"reddit failed: {e}", file=sys.stderr)
         posts = []
 
-    if not repos and not posts:
+    if not repos and not hn and not posts:
         print("no sources available; aborting", file=sys.stderr)
         return 2
 
@@ -277,8 +316,8 @@ def main() -> int:
     if card:
         send_photo(token, chat_id, card, f"☀️ Today's AI Digest — {date_str}")
 
-    ok = send_message(token, chat_id, build_message(repos, posts, date_str, lang))
-    print(f"done: {len(repos)} repos, {len(posts)} reddit posts, sent={ok}")
+    ok = send_message(token, chat_id, build_message(repos, hn, posts, date_str, lang))
+    print(f"done: {len(repos)} repos, {len(hn)} HN, {len(posts)} reddit, sent={ok}")
     return 0 if ok else 3
 
 
