@@ -26,7 +26,7 @@ Telegram chat. Zero servers required — run it locally, on cron, or with **GitH
 - 💬 **Reddit r/artificial** — hot posts via the RSS feed (works where the JSON API is blocked).
 - 🖼️ **Auto-generated card image** — a dark, shareable summary card (ASCII-safe, renders on any font).
 - 📨 **Telegram delivery** — photo + HTML digest with real source links, no link-preview spam.
-- 🌏 **Bilingual** — digest body in Korean (default) or English.
+- 🌏 **Auto-translation, free** — English source text is translated to your language (Korean by default) via Google Translate — no API key, no cost. Set `LANG_DIGEST=en` to keep originals.
 - ⏰ **Set-and-forget** — ship it on GitHub Actions cron and never think about it again.
 - 🔒 **Secret-safe** — token & chat id live in env vars, never in code.
 

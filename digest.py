@@ -280,6 +280,41 @@ def send_message(token: str, chat_id: str, text: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
+# Translation (free, no API key — Google via deep-translator)
+# --------------------------------------------------------------------------- #
+def translate_content(repos: list[dict], hn: list[dict], posts: list[dict],
+                      lang: str) -> None:
+    """Translate repo descriptions and HN/Reddit titles into `lang` in place.
+
+    Uses deep-translator's free Google endpoint (no API key). Best-effort:
+    any failure leaves the original text untouched. No-op for English.
+    """
+    if lang == "en":
+        return
+    try:
+        from deep_translator import GoogleTranslator
+        tr = GoogleTranslator(source="auto", target=lang)
+    except Exception as e:  # noqa: BLE001 — library missing or init failure
+        print(f"translation disabled: {e}", file=sys.stderr)
+        return
+
+    def ko(text: str) -> str:
+        if not text:
+            return text
+        try:
+            return tr.translate(text) or text
+        except Exception:  # noqa: BLE001 — network / rate limit, keep original
+            return text
+
+    for r in repos:
+        r["desc"] = ko(r["desc"])
+    for h in hn:
+        h["title"] = ko(h["title"])
+    for p in posts:
+        p["title"] = ko(p["title"])
+
+
+# --------------------------------------------------------------------------- #
 def main() -> int:
     token = os.environ.get("BOT_TOKEN")
     chat_id = os.environ.get("CHAT_ID")
@@ -313,6 +348,8 @@ def main() -> int:
     if not repos and not hn and not posts:
         print("no sources available; aborting", file=sys.stderr)
         return 2
+
+    translate_content(repos, hn, posts, lang)  # Korean by default, free
 
     card = build_card(repos, date_iso) if repos else None
     if card:
